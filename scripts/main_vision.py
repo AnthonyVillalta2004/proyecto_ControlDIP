@@ -8,6 +8,7 @@ from src.camera.v4l2_config import V4L2Configurator
 from src.processing.calibrator import PlateCalibrator
 from src.processing.detector import BallDetector
 from src.processing.kalman import BallKalmanFilter
+from src.communication.transmitter import SerialTransmitter
 
 def main():
     print("Iniciando Sistema de Visión y Predicción...")
@@ -29,7 +30,11 @@ def main():
     detector = BallDetector(homography_matrix=homography_matrix, hsv_config_path="hsv_config.json")
     kalman_filter = BallKalmanFilter(dt=0.033) # 30 FPS
 
-    # 4. Inicializar Cámara
+    # 4. Inicializar Transmisor Serial
+    # En Linux, las ESP32 usualmente montan en ttyUSB0 o ttyUSB1
+    transmitter = SerialTransmitter(port="/dev/ttyUSB0", baudrate=921600)
+
+    # 5. Inicializar Cámara
     cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -69,10 +74,14 @@ def main():
             x_filt, y_filt, vx, vy = 0.0, 0.0, 0.0, 0.0
             estado_presencia = 0
 
-        # --- AQUI ESTÁN TUS 5 VARIABLES FINALES PARA LA ESP32 ---
-        # Por ahora las imprimimos en consola. En la siguiente fase las empaquetaremos en bytes por Serial.
-        print(f"ESTADO: {estado_presencia} | X: {x_filt:6.1f} | Y: {y_filt:6.1f} | Vx: {vx:6.1f} | Vy: {vy:6.1f} | FPS: {fps:.1f}")
+        # --- Enviar Trama Binaria a ESP32 ---
+        transmitter.send(estado_presencia, x_filt, y_filt, vx, vy)
 
+        # Print esporádico para no saturar la terminal (cada ~30 frames)
+        if int(new_frame_time * 10) % 10 == 0:
+            print(f"ESTADO: {estado_presencia} | X: {x_filt:6.1f} | Y: {y_filt:6.1f} | Vx: {vx:6.1f} | Vy: {vy:6.1f} | FPS: {fps:.1f}")
+
+        
         # --- Visualización para Depuración ---
         # Dibujamos un círculo donde el Filtro de Kalman "cree" que está la bola
         if ball_found:
