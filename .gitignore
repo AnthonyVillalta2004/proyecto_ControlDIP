@@ -17,3 +17,5 @@ __pycache__/
 # Archivos temporales de Linux/OpenCV
 *.log
 .DS_Store
+calibration_matrix.npy
+hsv_config.json
